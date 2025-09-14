@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <thread>
+#include <cstring>
 
 #ifndef MESON_BUILD_VERSION
 #define MESON_BUILD_VERSION "dev"
