@@ -39,3 +39,10 @@
 
 # debug information files
 *.dwo
+
+# Meson build system
+/build/
+/meson-logs/
+/meson-private/
+meson-info.txt
+meson-log.txt
