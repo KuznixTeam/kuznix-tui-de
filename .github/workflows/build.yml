@@ -1,10 +1,9 @@
 name: Daily Build
 
 on:
-  push:  # Trigger on every commit to any branch
   schedule:
-    - cron: '0 23 * * *'  # Runs at 00:00 CET daily (23:00 UTC)
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 23 * * *' # 00:00 CET nightly (23:00 UTC)
+  workflow_dispatch: # Manual trigger
 
 jobs:
   ubuntu-build:
@@ -31,7 +30,7 @@ jobs:
       - name: Build project
         run: |
           mkdir -p dist/linux
-          # Replace this with your actual build commands
+          # Replace with actual build commands
           echo "Sample file for ${{ matrix.host }}" > dist/linux/README.txt
 
       - name: Create archives (built output)
@@ -51,15 +50,16 @@ jobs:
 
       - name: Create archives (source code)
         run: |
-          SRC_DIR=.
+          SRC_DIR=$(pwd)
+          EXCLUDES="--exclude=dist --exclude=*.tar.gz --exclude=*.tar.xz --exclude=*.zip"
           for ext in tar.gz tar.xz zip; do
             SRC_ARCHIVE=kuznix-tui-de-${VERSION}-${{ matrix.host }}-src.$ext
             if [ "$ext" = "tar.gz" ]; then
-              tar --exclude=dist -czf $SRC_ARCHIVE -C $SRC_DIR .
+              tar $EXCLUDES -czf $SRC_ARCHIVE -C $SRC_DIR .
             elif [ "$ext" = "tar.xz" ]; then
-              tar --exclude=dist -cJf $SRC_ARCHIVE -C $SRC_DIR .
+              tar $EXCLUDES -cJf $SRC_ARCHIVE -C $SRC_DIR .
             elif [ "$ext" = "zip" ]; then
-              zip -r $SRC_ARCHIVE $(ls -A | grep -v '^dist$')
+              zip -r $SRC_ARCHIVE . -x "dist/*" "*.tar.gz" "*.tar.xz" "*.zip"
             fi
             echo "Created source archive: $SRC_ARCHIVE"
           done
