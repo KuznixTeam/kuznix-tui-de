@@ -1,0 +1,123 @@
+name: Daily Build
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 23 * * *'  # Runs at 00:00 CET daily (23:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  # Ubuntu native builds
+  ubuntu-build:
+    strategy:
+      matrix:
+        host: [ubuntu-22.04, ubuntu-latest]
+    runs-on: ${{ matrix.host }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set version
+        id: version
+        run: |
+          DATE=$(date -u +"%Y%m%d")
+          VERSION="0.1-$DATE"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version set to $VERSION"
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential zip xz-utils
+
+      - name: Build project
+        run: |
+          mkdir -p dist/linux
+          # Replace with your actual build commands
+          echo "Sample file for ${{ matrix.host }}" > dist/linux/README.txt
+
+      - name: Create archives
+        run: |
+          OS_DIR=dist/linux
+          for ext in tar.gz tar.xz zip; do
+            ARCHIVE_NAME=kuznix-tui-de-${VERSION}-${{ matrix.host }}.$ext
+            if [ "$ext" = "tar.gz" ]; then
+              tar -czf $ARCHIVE_NAME -C $OS_DIR .
+            elif [ "$ext" = "tar.xz" ]; then
+              tar -cJf $ARCHIVE_NAME -C $OS_DIR .
+            elif [ "$ext" = "zip" ]; then
+              zip -r $ARCHIVE_NAME $OS_DIR/*
+            fi
+            echo "Created $ARCHIVE_NAME"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}
+          path: |
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.tar.gz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.tar.xz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.zip
+
+  # Docker builds for Debian, Fedora, Arch
+  docker-build:
+    strategy:
+      matrix:
+        image: [debian:13, fedora:42, archlinux:latest]
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+      options: --user root:root
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set version
+        id: version
+        run: |
+          DATE=$(date -u +"%Y%m%d")
+          VERSION="0.1-$DATE"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Version set to $VERSION"
+
+      - name: Install build dependencies
+        run: |
+          if [ -f /etc/debian_version ]; then
+            apt-get update && apt-get install -y build-essential zip xz-utils
+          elif [ -f /etc/fedora-release ]; then
+            dnf install -y @development-tools zip xz
+          elif [ -f /etc/arch-release ]; then
+            pacman -Sy --noconfirm base-devel zip xz
+          fi
+
+      - name: Build project
+        run: |
+          mkdir -p dist/linux
+          echo "Sample file for ${{ matrix.image }}" > dist/linux/README.txt
+
+      - name: Create archives
+        run: |
+          OS_DIR=dist/linux
+          for ext in tar.gz tar.xz zip; do
+            ARCHIVE_NAME=kuznix-tui-de-${VERSION}-${{ matrix.image }}.$ext
+            if [ "$ext" = "tar.gz" ]; then
+              tar -czf $ARCHIVE_NAME -C $OS_DIR .
+            elif [ "$ext" = "tar.xz" ]; then
+              tar -cJf $ARCHIVE_NAME -C $OS_DIR .
+            elif [ "$ext" = "zip" ]; then
+              zip -r $ARCHIVE_NAME $OS_DIR/*
+            fi
+            echo "Created $ARCHIVE_NAME"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.image }}
+          path: |
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.image }}.tar.gz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.image }}.tar.xz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.image }}.zip
