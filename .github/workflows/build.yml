@@ -25,53 +25,38 @@ jobs:
           echo "Version set to $VERSION"
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential zip xz-utils
-
-      - name: Build project
         run: |
-          mkdir -p dist/linux
-          # Replace with actual build commands
-          echo "Sample file for ${{ matrix.host }}" > dist/linux/README.txt
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build meson zip xz-utils
 
-      - name: Create archives (built output)
+      - name: Configure Meson build
         run: |
-          OS_DIR=dist/linux
+          meson setup build --buildtype=release
+
+      - name: Compile with Ninja
+        run: |
+          meson compile -C build
+
+      - name: Compress binaries
+        run: |
+          BIN_DIR=build  # Meson build output directory
           for ext in tar.gz tar.xz zip; do
-            ARCHIVE_NAME=kuznix-tui-de-${VERSION}-${{ matrix.host }}.$ext
+            ARCHIVE_NAME=kuznix-tui-de-${VERSION}-${{ matrix.host }}-bin.$ext
             if [ "$ext" = "tar.gz" ]; then
-              tar -czf $ARCHIVE_NAME -C $OS_DIR .
+              tar -czf $ARCHIVE_NAME -C $BIN_DIR .
             elif [ "$ext" = "tar.xz" ]; then
-              tar -cJf $ARCHIVE_NAME -C $OS_DIR .
+              tar -cJf $ARCHIVE_NAME -C $BIN_DIR .
             elif [ "$ext" = "zip" ]; then
-              zip -r $ARCHIVE_NAME $OS_DIR/*
+              zip -r $ARCHIVE_NAME $BIN_DIR/*
             fi
-            echo "Created built output archive: $ARCHIVE_NAME"
-          done
-
-      - name: Create archives (source code)
-        run: |
-          SRC_DIR=$(pwd)
-          EXCLUDES="--exclude=dist --exclude=*.tar.gz --exclude=*.tar.xz --exclude=*.zip"
-          for ext in tar.gz tar.xz zip; do
-            SRC_ARCHIVE=kuznix-tui-de-${VERSION}-${{ matrix.host }}-src.$ext
-            if [ "$ext" = "tar.gz" ]; then
-              tar $EXCLUDES -czf $SRC_ARCHIVE -C $SRC_DIR .
-            elif [ "$ext" = "tar.xz" ]; then
-              tar $EXCLUDES -cJf $SRC_ARCHIVE -C $SRC_DIR .
-            elif [ "$ext" = "zip" ]; then
-              zip -r $SRC_ARCHIVE . -x "dist/*" "*.tar.gz" "*.tar.xz" "*.zip"
-            fi
-            echo "Created source archive: $SRC_ARCHIVE"
+            echo "Created binary archive: $ARCHIVE_NAME"
           done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}
+          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin
           path: |
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.tar.gz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.tar.xz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}.zip
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-src.tar.gz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-src.tar.xz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-src.zip
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.tar.gz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.tar.xz
+            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.zip
