@@ -1,0 +1,5 @@
+kuznix-tui-de (0.1+kuznix-1) UNRELEASED; urgency=medium
+
+  * Initial release. (Closes: #nnnn)  <nnnn is the bug number of your ITP>
+
+ -- Krzysztof Demir Kuźniak <kuznix@unknown>  Sun, 21 Sep 2025 15:33:56 +0200

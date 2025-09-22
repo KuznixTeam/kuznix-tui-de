@@ -1,0 +1,12 @@
+Package: kuznix-tui-de-dbgsym
+Source: kuznix-tui-de
+Version: 0.1+kuznix-1
+Auto-Built-Package: debug-symbols
+Architecture: amd64
+Maintainer: Krzysztof Demir Kuźniak <krzysztofdemirkuzniak@gmail.com>
+Installed-Size: 150
+Depends: kuznix-tui-de (= 0.1+kuznix-1)
+Section: debug
+Priority: optional
+Description: debug symbols for kuznix-tui-de
+Build-Ids: a3162f7a373e32ada8e30a920a10ac24a20f4665
