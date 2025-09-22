@@ -2,81 +2,66 @@ name: Daily Build
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 00:00 UTC nightly
-  workflow_dispatch: # Manual trigger
+    - cron: "0 0 * * *" # every day at 00:00 UTC
+  workflow_dispatch:     # manual trigger
 
 jobs:
-  debian-build:
+  build:
+    runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        host: [ubuntu-22.04, ubuntu-latest]
-    runs-on: ${{ matrix.host }}
+        host: [ubuntu-22.04, ubuntu-24.04]
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set version
-        id: version
-        run: |
-          DATE=$(date -u +"%Y%m%d")
-          VERSION="0.1-$DATE"
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "HOST=${{ matrix.host }}" >> $GITHUB_ENV
-          echo "Version set to $VERSION for host ${{ matrix.host }}"
-
-      - name: Install build/packaging tools
+      - name: Set up build deps
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            devscripts debhelper build-essential fakeroot \
-            meson ninja-build zip xz-utils zstd lzma lzip
+            devscripts build-essential debhelper lintian \
+            fakeroot dh-make tar xz-utils zstd lzip
 
-      - name: Update control.daily
+      - name: Set env vars
         run: |
-          cp debian/control debian/control.daily
-          echo "# Daily build version: $VERSION" >> debian/control.daily
+          VERSION="0.1+daily-$(date -u +%Y%m%d)"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "HOST=${{ matrix.host }}" >> $GITHUB_ENV
 
-      - name: Build Debian package
+      - name: Bump changelog with new version
         run: |
-          # Bump changelog with new version (don't recreate)
           dch --newversion "${VERSION}" "Automated daily build"
           dpkg-buildpackage -us -uc -b
+        env:
+          DEBEMAIL: "krzysztofdemirkuzniak@gmail.com"
+          DEBFULLNAME: "Krzysztof Demir Kuźniak"
 
-      - name: Build with Meson/Ninja
-        run: |
-          meson setup build --buildtype=release
-          meson compile -C build
-
-      - name: Prepare artifacts
+      - name: Collect artifacts
         run: |
           mkdir -p artifacts
-          BIN_DIR=build
-          PREFIX=kuznix-tui-de-${VERSION}-${HOST}
+          cp ../*.deb artifacts/ || true
+          cp ../*.dsc artifacts/ || true
+          cp ../*.tar.* artifacts/ || true
+          # Convert source tarballs to extra formats
+          for src in ../*.tar.*; do
+            [ -f "$src" ] || continue
+            base=$(basename "$src" | sed "s/\.tar\..*//")
+            cp "$src" "artifacts/${base}.tar.gz"
+            cp "$src" "artifacts/${base}.tar.xz"
+            zstd -q -f -o "artifacts/${base}.tar.zst" "$src"
+            lzip -q -f -o "artifacts/${base}.tar.lz" "$src"
+          done
 
-          # Tarballs
-          tar -czf artifacts/${PREFIX}-bin.tar.gz -C $BIN_DIR .
-          tar -cJf artifacts/${PREFIX}-bin.tar.xz -C $BIN_DIR .
-          tar --zstd -cf artifacts/${PREFIX}-bin.tar.zst -C $BIN_DIR .
-          tar --lzip -cf artifacts/${PREFIX}-bin.tar.lz -C $BIN_DIR .
-
-          # Debian package (rename with host)
-          mv ../*.deb artifacts/${PREFIX}.deb
+          # Rename layout: {reponame}-{version}-{host}
+          for f in artifacts/*; do
+            base=$(basename "$f")
+            mv "$f" "artifacts/kuznix-tui-de-${VERSION}-${HOST}-${base}"
+          done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}
+          name: kuznix-tui-de-${{ env.VERSION }}-${{ env.HOST }}
           path: artifacts/*
-
-      - name: Commit and push updated control.daily
-        if: matrix.host == 'ubuntu-latest' # run only once
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git pull --rebase
-          git add debian/control.daily
-          git commit -m "Update debian/control.daily for version $VERSION" || echo "No changes to commit"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
