@@ -26,13 +26,13 @@ jobs:
 
       - name: Set env vars
         run: |
-          VERSION="0.1+daily-$(date -u +%Y%m%d)"
+          VERSION="0.1+kuznix-daily-$(date -u +%Y%m%d)"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "HOST=${{ matrix.host }}" >> $GITHUB_ENV
 
       - name: Bump changelog with new version
         run: |
-          dch --newversion "${VERSION}" "Automated daily build"
+          dch --newversion "${VERSION}" --force-bad-version "Automated daily build"
           dpkg-buildpackage -us -uc -b
         env:
           DEBEMAIL: "krzysztofdemirkuzniak@gmail.com"
