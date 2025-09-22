@@ -39,7 +39,8 @@ jobs:
 
       - name: Build Debian package
         run: |
-          dch --create -v "${VERSION}" --package kuznix-tui-de "Automated daily build"
+          # Bump changelog with new version (don't recreate)
+          dch --newversion "${VERSION}" "Automated daily build"
           dpkg-buildpackage -us -uc -b
 
       - name: Build with Meson/Ninja
@@ -59,7 +60,7 @@ jobs:
           tar --zstd -cf artifacts/${PREFIX}-bin.tar.zst -C $BIN_DIR .
           tar --lzip -cf artifacts/${PREFIX}-bin.tar.lz -C $BIN_DIR .
 
-          # Debian package
+          # Debian package (rename with host)
           mv ../*.deb artifacts/${PREFIX}.deb
 
       - name: Upload artifacts
@@ -69,7 +70,7 @@ jobs:
           path: artifacts/*
 
       - name: Commit and push updated control.daily
-        if: matrix.host == 'ubuntu-latest' # only once, not for every host
+        if: matrix.host == 'ubuntu-latest' # run only once
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
