@@ -2,11 +2,11 @@ name: Daily Build
 
 on:
   schedule:
-    - cron: '0 23 * * *' # 00:00 CET nightly (23:00 UTC)
+    - cron: '0 0 * * *' # 00:00 UTC nightly
   workflow_dispatch: # Manual trigger
 
 jobs:
-  ubuntu-build:
+  debian-build:
     strategy:
       matrix:
         host: [ubuntu-22.04, ubuntu-latest]
@@ -22,41 +22,60 @@ jobs:
           DATE=$(date -u +"%Y%m%d")
           VERSION="0.1-$DATE"
           echo "VERSION=$VERSION" >> $GITHUB_ENV
-          echo "Version set to $VERSION"
+          echo "HOST=${{ matrix.host }}" >> $GITHUB_ENV
+          echo "Version set to $VERSION for host ${{ matrix.host }}"
 
-      - name: Install dependencies
+      - name: Install build/packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build meson zip xz-utils
+          sudo apt-get install -y \
+            devscripts debhelper build-essential fakeroot \
+            meson ninja-build zip xz-utils zstd lzma lzip
 
-      - name: Configure Meson build
+      - name: Update control.daily
+        run: |
+          cp debian/control debian/control.daily
+          echo "# Daily build version: $VERSION" >> debian/control.daily
+
+      - name: Build Debian package
+        run: |
+          dch --create -v "${VERSION}" --package kuznix-tui-de "Automated daily build"
+          dpkg-buildpackage -us -uc -b
+
+      - name: Build with Meson/Ninja
         run: |
           meson setup build --buildtype=release
-
-      - name: Compile with Ninja
-        run: |
           meson compile -C build
 
-      - name: Compress binaries
+      - name: Prepare artifacts
         run: |
-          BIN_DIR=build  # Meson build output directory
-          for ext in tar.gz tar.xz zip; do
-            ARCHIVE_NAME=kuznix-tui-de-${VERSION}-${{ matrix.host }}-bin.$ext
-            if [ "$ext" = "tar.gz" ]; then
-              tar -czf $ARCHIVE_NAME -C $BIN_DIR .
-            elif [ "$ext" = "tar.xz" ]; then
-              tar -cJf $ARCHIVE_NAME -C $BIN_DIR .
-            elif [ "$ext" = "zip" ]; then
-              zip -r $ARCHIVE_NAME $BIN_DIR/*
-            fi
-            echo "Created binary archive: $ARCHIVE_NAME"
-          done
+          mkdir -p artifacts
+          BIN_DIR=build
+          PREFIX=kuznix-tui-de-${VERSION}-${HOST}
+
+          # Tarballs
+          tar -czf artifacts/${PREFIX}-bin.tar.gz -C $BIN_DIR .
+          tar -cJf artifacts/${PREFIX}-bin.tar.xz -C $BIN_DIR .
+          tar --zstd -cf artifacts/${PREFIX}-bin.tar.zst -C $BIN_DIR .
+          tar --lzip -cf artifacts/${PREFIX}-bin.tar.lz -C $BIN_DIR .
+
+          # Debian package
+          mv ../*.deb artifacts/${PREFIX}.deb
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin
-          path: |
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.tar.gz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.tar.xz
-            kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}-bin.zip
+          name: kuznix-tui-de-${{ env.VERSION }}-${{ matrix.host }}
+          path: artifacts/*
+
+      - name: Commit and push updated control.daily
+        if: matrix.host == 'ubuntu-latest' # only once, not for every host
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git pull --rebase
+          git add debian/control.daily
+          git commit -m "Update debian/control.daily for version $VERSION" || echo "No changes to commit"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
