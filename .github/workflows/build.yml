@@ -22,7 +22,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             devscripts build-essential debhelper lintian \
-            fakeroot dh-make tar xz-utils zstd lzip
+            fakeroot dh-make tar xz-utils zstd lzip meson ninja-build
 
       - name: Set env vars
         run: |
